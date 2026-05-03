@@ -12,16 +12,11 @@ import { Send, Download, Ghost, ShieldCheck, XCircle, FileText } from 'lucide-re
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const {
-    state,
-    setState,
-    error,
-    progress,
-    remoteFile,
     peerId,
     initPeer,
     sendFile,
-    cleanup
+    cleanup,
+    isOnline
   } = useWebRTC();
 
   const [activeQR, setActiveQR] = useState<{ value: string; title: string; description: string } | null>(null);
@@ -104,8 +99,9 @@ export default function App() {
           </div>
           <h1 className="text-xl font-bold tracking-tight">Ghost-Share</h1>
         </div>
-        <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-gray-500 uppercase tracking-widest">
-          Modo P2P Activo
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono uppercase tracking-widest">
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500 animate-pulse'}`} />
+          {isOnline ? 'En Línea' : 'Conectando...'}
         </div>
       </header>
 

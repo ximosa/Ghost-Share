@@ -11,6 +11,8 @@ export function useWebRTC() {
   const [remoteFile, setRemoteFile] = useState<FileMetadata | null>(null);
   const [peerId, setPeerId] = useState<string | null>(null);
 
+  const [isOnline, setIsOnline] = useState(false);
+
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
   const remoteFileRef = useRef<FileMetadata | null>(null);
@@ -29,6 +31,7 @@ export function useWebRTC() {
     receivedChunksRef.current = [];
     remoteFileRef.current = null;
     setPeerId(null);
+    setIsOnline(false);
   }, []);
 
   const triggerDownload = useCallback((chunks: Uint8Array[], metadata: FileMetadata) => {
@@ -82,14 +85,12 @@ export function useWebRTC() {
           console.error('Failed to parse message', e);
         }
       } else {
-        // Handle binary data (could be ArrayBuffer, Uint8Array, or Blob)
         let chunk: Uint8Array;
         if (data instanceof Uint8Array) {
           chunk = data;
         } else if (data instanceof ArrayBuffer) {
           chunk = new Uint8Array(data);
         } else if (data instanceof Blob) {
-          // Blobs are less common in PeerJS data events but possible
           data.arrayBuffer().then(buf => {
              const u8 = new Uint8Array(buf);
              processChunk(u8);
@@ -104,17 +105,12 @@ export function useWebRTC() {
 
     const processChunk = (chunk: Uint8Array) => {
       receivedChunksRef.current.push(chunk);
-      
       const bytesTransferred = receivedChunksRef.current.reduce((acc, c) => acc + c.length, 0);
       const now = Date.now();
       const duration = (now - startTimeRef.current) / 1000;
       const speed = duration > 0 ? bytesTransferred / duration : 0;
 
-      setProgress(prev => ({
-        ...prev,
-        bytesTransferred,
-        speed
-      }));
+      setProgress(prev => ({ ...prev, bytesTransferred, speed }));
 
       if (remoteFileRef.current && bytesTransferred >= remoteFileRef.current.size) {
         triggerDownload(receivedChunksRef.current, remoteFileRef.current);
@@ -123,13 +119,11 @@ export function useWebRTC() {
     };
 
     conn.on('close', () => {
-      // Don't go back to idle if we just completed a transfer
-      // This allows the user to still download the file even if the sender disconnects
       setState(prev => prev === 'completed' ? 'completed' : 'idle');
     });
 
     conn.on('error', (err) => {
-      setError('Error en la conexión');
+      setError('Error en la conexión: ' + err.type);
       console.error(err);
     });
   };
@@ -137,23 +131,25 @@ export function useWebRTC() {
   const initPeer = useCallback((id?: string) => {
     cleanup();
     
-    // Configuración más robusta para evitar desconexiones en móviles
     const peer = new Peer({
-      debug: 1, // Solo errores
+      debug: 1,
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          { urls: 'stun:stun.services.mozilla.com' }
         ],
-        sdpSemantics: 'unified-plan'
+        iceCandidatePoolSize: 10
       }
     });
     
     peer.on('open', (newId) => {
-      console.log('Mi ID de Peer es:', newId);
       setPeerId(newId);
+      setIsOnline(true);
       if (id) {
-        console.log('Intentando conectar con:', id);
         const conn = peer.connect(id, { 
           label: 'file-transfer', 
           reliable: true,
@@ -163,6 +159,24 @@ export function useWebRTC() {
         setState('connecting');
       }
     });
+
+    peer.on('connection', (conn) => {
+      setupConnection(conn);
+    });
+
+    peer.on('disconnected', () => {
+      setIsOnline(false);
+      peer.reconnect();
+    });
+
+    peer.on('error', (err) => {
+      setError('Error de red: ' + err.type);
+      setIsOnline(false);
+      console.error(err);
+    });
+
+    peerRef.current = peer;
+  }, [cleanup]);
 
     peer.on('connection', (conn) => {
       setupConnection(conn);
