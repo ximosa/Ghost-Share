@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useWebRTC } from './hooks/useWebRTC';
 import { Scanner } from './components/Scanner';
 import { QRDisplay } from './components/QRDisplay';
@@ -52,6 +52,13 @@ export default function App() {
     }
   }, [peerId, state]);
 
+  // Auto-send when connected
+  useEffect(() => {
+    if (state === 'connected' && pendingFile) {
+      sendFile(pendingFile);
+    }
+  }, [state, pendingFile, sendFile]);
+
   const handleSendClick = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -94,7 +101,8 @@ export default function App() {
     const file = e.dataTransfer.files[0];
     if (file && state === 'idle') {
       setPendingFile(file);
-      handleCreateOffer();
+      initPeer();
+      setState('offering');
     }
   }, [state]);
 
