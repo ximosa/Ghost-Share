@@ -47,8 +47,8 @@ export default function App() {
       const offer = await createOffer();
       setActiveQR({
         value: offer,
-        title: "Paso 1: El Receptor escanea",
-        description: "El destinatario debe elegir 'Recibir' y escanear este código con su móvil."
+        title: "1. EL MÓVIL DEBE ESCANEAR ESTO",
+        description: "IMPORTANTE: En tu móvil, dale al botón 'RECIBIR' (dentro de esta web) y escanea este código."
       });
       setState('offering');
     } catch (err) {
@@ -69,8 +69,8 @@ export default function App() {
         const answer = await createAnswer(data);
         setActiveQR({
           value: answer,
-          title: "Paso 2: El Emisor escanea",
-          description: "Ahora tú (Emisor) debes escanear este código desde tu ordenador para confirmar la conexión."
+          title: "2. AHORA EL ORDENADOR ESCANEA AL MÓVIL",
+          description: "Dale al botón que ha aparecido en tu ORDENADOR para escanear este código del móvil."
         });
       } else if (parsed.type === 'answer') {
         setActiveQR(null);
@@ -130,7 +130,10 @@ export default function App() {
             >
               <div className="text-center mb-12">
                 <h2 className="text-4xl font-bold mb-4 tracking-tight">Comparte archivos sin dejar rastro.</h2>
-                <p className="text-gray-400 text-lg">Transferencia directa P2P mediante códigos QR. Sin servidores, sin límites de tamaño, cifrado de extremo a extremo.</p>
+                <p className="text-gray-400 text-lg">Transferencia directa P2P. Sin servidores, sin límites de tamaño, cifrado total.</p>
+                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-500 text-sm font-medium">
+                  ⚠️ ¡IMPORTANTE! No uses la cámara de tu móvil. Usa el botón "Recibir" de aquí abajo.
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -155,7 +158,7 @@ export default function App() {
                   <Download className="w-8 h-8 mb-4 text-white" />
                   <div className="text-left">
                     <h3 className="text-xl font-bold">Recibir</h3>
-                    <p className="text-sm text-gray-400">Escanea el código del emisor</p>
+                    <p className="text-sm text-gray-400">Pulsa aquí para escanear al emisor</p>
                   </div>
                   <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-5 transition-opacity">
                     <Download className="w-24 h-24 -rotate-12" />
@@ -165,13 +168,13 @@ export default function App() {
 
               <div className="pt-12 flex flex-wrap items-center justify-center gap-8 opacity-40">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
-                  <ShieldCheck className="w-4 h-4" /> Secure WebRTC
+                  <ShieldCheck className="w-4 h-4" /> WebRTC Seguro
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
-                  <XCircle className="w-4 h-4" /> No Server Logs
+                  <XCircle className="w-4 h-4" /> Sin Registros
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
-                  <FileText className="w-4 h-4" /> Instant Transfer
+                  <FileText className="w-4 h-4" /> Envío Instantáneo
                 </div>
               </div>
             </motion.div>
@@ -250,7 +253,7 @@ export default function App() {
                 className="mt-6 w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2"
               >
                 <Download className="w-5 h-5" />
-                Ahora Escanear código del Receptor
+                ¡SIGUIENTE PASO! Clica aquí y escanea al móvil
               </button>
             )}
           </QRDisplay>
@@ -262,7 +265,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="p-6 text-center text-[10px] uppercase tracking-widest text-gray-600 font-mono">
-        Made for Secure Exchange • v1.0.0
+        Creado para Intercambio Seguro • v1.1.0
       </footer>
 
       {error && (

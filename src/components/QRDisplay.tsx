@@ -25,7 +25,7 @@ export const QRDisplay: React.FC<QRDisplayProps> = ({ value, title, description,
             onClick={onClose}
             className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-2xl transition-colors"
           >
-            Cerrar
+            Cerrar Ventana
           </button>
           {children}
         </div>
