@@ -3,6 +3,21 @@ import { TransferState, FileMetadata, SignalingData, TransferProgress } from '..
 
 const CHUNK_SIZE = 16384; // 16KB
 
+// Helper to reduce SDP size for QR codes
+const minifySdp = (sdp: string) => {
+  return sdp
+    .split('\r\n')
+    .filter(line => {
+      // Remove lines that aren't essential for a basic P2P connection
+      return !line.startsWith('a=extmap') && 
+             !line.startsWith('a=fmtp') && 
+             !line.startsWith('a=rtcp') && 
+             !line.startsWith('a=ssrc') &&
+             !line.startsWith('a=msid');
+    })
+    .join('\r\n');
+};
+
 export function useWebRTC() {
   const [state, setState] = useState<TransferState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -148,11 +163,11 @@ export function useWebRTC() {
     // This is because we don't have a signaling server to trickle ICE
     return new Promise<string>((resolve) => {
       if (pc.iceGatheringState === 'complete') {
-        resolve(JSON.stringify({ type: 'offer', sdp: pc.localDescription?.sdp }));
+        resolve(JSON.stringify({ type: 'offer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
       } else {
         pc.onicecandidate = (event) => {
           if (event.candidate === null) {
-            resolve(JSON.stringify({ type: 'offer', sdp: pc.localDescription?.sdp }));
+            resolve(JSON.stringify({ type: 'offer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
           }
         };
       }
@@ -173,11 +188,11 @@ export function useWebRTC() {
 
     return new Promise<string>((resolve) => {
       if (pc.iceGatheringState === 'complete') {
-        resolve(JSON.stringify({ type: 'answer', sdp: pc.localDescription?.sdp }));
+        resolve(JSON.stringify({ type: 'answer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
       } else {
         pc.onicecandidate = (event) => {
           if (event.candidate === null) {
-            resolve(JSON.stringify({ type: 'answer', sdp: pc.localDescription?.sdp }));
+            resolve(JSON.stringify({ type: 'answer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
           }
         };
       }

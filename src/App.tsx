@@ -47,8 +47,8 @@ export default function App() {
       const offer = await createOffer();
       setActiveQR({
         value: offer,
-        title: "Escanea para Recibir",
-        description: "Muestra este QR al destinatario para iniciar la conexión P2P"
+        title: "Paso 1: El Receptor escanea",
+        description: "El destinatario debe elegir 'Recibir' y escanear este código con su móvil."
       });
       setState('offering');
     } catch (err) {
@@ -69,8 +69,8 @@ export default function App() {
         const answer = await createAnswer(data);
         setActiveQR({
           value: answer,
-          title: "Escanea para Confirmar",
-          description: "El emisor debe escanear este código para cerrar el apretón de manos"
+          title: "Paso 2: El Emisor escanea",
+          description: "Ahora tú (Emisor) debes escanear este código desde tu ordenador para confirmar la conexión."
         });
       } else if (parsed.type === 'answer') {
         setActiveQR(null);
@@ -243,7 +243,17 @@ export default function App() {
             title={activeQR.title} 
             description={activeQR.description} 
             onClose={() => setActiveQR(null)}
-          />
+          >
+            {state === 'offering' && (
+              <button
+                onClick={() => setShowScanner(true)}
+                className="mt-6 w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                Ahora Escanear código del Receptor
+              </button>
+            )}
+          </QRDisplay>
         )}
         {showScanner && (
           <Scanner onScan={onScan} onClose={() => setShowScanner(false)} />
