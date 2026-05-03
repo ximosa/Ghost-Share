@@ -73,29 +73,6 @@ export default function App() {
     input.click();
   };
 
-  const handleReceiveClick = () => {
-    setShowScanner(true);
-    setState('answering');
-  };
-
-  const onScan = async (data: string) => {
-    setShowScanner(false);
-    try {
-      // If it's a URL with an ID, extract it
-      const url = new URL(data);
-      const id = url.searchParams.get('id');
-      if (id) {
-        initPeer(id);
-      } else {
-        // Fallback for old codes or raw IDs
-        initPeer(data);
-      }
-    } catch (err) {
-      // Not a URL, try as raw ID
-      initPeer(data);
-    }
-  };
-
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -104,14 +81,13 @@ export default function App() {
       initPeer();
       setState('offering');
     }
-  }, [state]);
+  }, [state, initPeer, setState]);
 
   const reset = () => {
     cleanup();
     setState('idle');
     setPendingFile(null);
     setActiveQR(null);
-    setShowScanner(false);
   };
 
   return (
@@ -129,7 +105,7 @@ export default function App() {
           <h1 className="text-xl font-bold tracking-tight">Ghost-Share</h1>
         </div>
         <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-gray-500 uppercase tracking-widest">
-          P2P Stealth Mode
+          Modo P2P Activo
         </div>
       </header>
 
@@ -145,54 +121,51 @@ export default function App() {
               className="w-full max-w-lg space-y-6"
             >
               <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold mb-4 tracking-tight">Comparte archivos sin dejar rastro.</h2>
-                <p className="text-gray-400 text-lg">Transferencia directa P2P. Sin servidores, sin límites de tamaño, cifrado total.</p>
-                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-500 text-sm font-medium">
-                  ⚠️ ¡IMPORTANTE! No uses la cámara de tu móvil. Usa el botón "Recibir" de aquí abajo.
-                </div>
+                <h2 className="text-4xl font-bold mb-4 tracking-tight">Envía archivos en un segundo.</h2>
+                <p className="text-gray-400 text-lg">Directo, seguro y sin registros. Selecciona un archivo y comparte el enlace.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex justify-center">
                 <button
                   onClick={handleSendClick}
-                  className="group relative p-8 bg-white text-black rounded-3xl overflow-hidden transition-transform active:scale-95"
+                  className="group relative w-full p-12 bg-white text-black rounded-3xl overflow-hidden transition-transform active:scale-95 flex flex-col items-center gap-4"
                 >
-                  <Send className="w-8 h-8 mb-4" />
-                  <div className="text-left">
-                    <h3 className="text-xl font-bold">Enviar</h3>
-                    <p className="text-sm opacity-60">Selecciona o suelta un archivo</p>
+                  <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center text-white mb-2">
+                    <Send className="w-8 h-8" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-2xl font-bold">Enviar Archivo</h3>
+                    <p className="text-sm opacity-60">Selecciona o suelta un archivo aquí</p>
                   </div>
                   <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                    <Send className="w-24 h-24 rotate-12" />
-                  </div>
-                </button>
-
-                <button
-                  onClick={handleReceiveClick}
-                  className="group relative p-8 bg-white/5 hover:bg-white/10 border border-white/10 rounded-3xl overflow-hidden transition-all active:scale-95"
-                >
-                  <Download className="w-8 h-8 mb-4 text-white" />
-                  <div className="text-left">
-                    <h3 className="text-xl font-bold">Recibir</h3>
-                    <p className="text-sm text-gray-400">Pulsa aquí para escanear al emisor</p>
-                  </div>
-                  <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-5 transition-opacity">
-                    <Download className="w-24 h-24 -rotate-12" />
+                    <Send className="w-32 h-32 rotate-12" />
                   </div>
                 </button>
               </div>
 
               <div className="pt-12 flex flex-wrap items-center justify-center gap-8 opacity-40">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
-                  <ShieldCheck className="w-4 h-4" /> WebRTC Seguro
+                  <ShieldCheck className="w-4 h-4" /> WebRTC Directo
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
-                  <XCircle className="w-4 h-4" /> Sin Registros
+                  <XCircle className="w-4 h-4" /> Sin Servidores
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
-                  <FileText className="w-4 h-4" /> Envío Instantáneo
+                  <FileText className="w-4 h-4" /> Cifrado P2P
                 </div>
               </div>
+            </motion.div>
+          )}
+
+          {state === 'connecting' && (
+            <motion.div
+              key="connecting"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center gap-4"
+            >
+              <div className="w-20 h-20 rounded-full border-4 border-white/10 border-t-white animate-spin mb-4" />
+              <p className="text-gray-400 font-mono">Conectando dispositivos...</p>
             </motion.div>
           )}
 
@@ -207,19 +180,7 @@ export default function App() {
                 <ShieldCheck className="w-12 h-12" />
               </div>
               <h2 className="text-2xl font-bold">¡Conectado!</h2>
-              {pendingFile ? (
-                <div className="flex flex-col items-center gap-4">
-                  <p className="text-gray-400">Listo para enviar <b>{pendingFile.name}</b></p>
-                  <button
-                    onClick={() => sendFile(pendingFile)}
-                    className="px-12 py-4 bg-white text-black font-bold rounded-2xl hover:bg-gray-200 transition-colors"
-                  >
-                    Iniciar Envío
-                  </button>
-                </div>
-              ) : (
-                <p className="text-gray-400">Esperando archivo del emisor...</p>
-              )}
+              <p className="text-gray-400">Iniciando transferencia segura...</p>
             </motion.div>
           )}
 
@@ -239,18 +200,6 @@ export default function App() {
               />
             </motion.div>
           )}
-
-          {state === 'connecting' && (
-            <motion.div
-              key="connecting"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center gap-4"
-            >
-              <Loader2 className="w-12 h-12 animate-spin text-gray-500" />
-              <p className="text-gray-400 font-mono">Estableciendo enlace P2P...</p>
-            </motion.div>
-          )}
         </AnimatePresence>
       </main>
 
@@ -263,7 +212,7 @@ export default function App() {
             description={activeQR.description} 
             onClose={() => {
               setActiveQR(null);
-              setState('idle');
+              reset();
             }}
           >
             {shareLink && (

@@ -123,7 +123,9 @@ export function useWebRTC() {
     };
 
     conn.on('close', () => {
-      setState('idle');
+      // Don't go back to idle if we just completed a transfer
+      // This allows the user to still download the file even if the sender disconnects
+      setState(prev => prev === 'completed' ? 'completed' : 'idle');
     });
 
     conn.on('error', (err) => {

@@ -41,17 +41,21 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ progress, file, dire
       </p>
 
       {isCompleted && direction === 'receiving' && (
-        <button
-          onClick={() => {
-            // Este botón servirá de respaldo si la descarga automática falla
-            const event = new CustomEvent('trigger-manual-download');
-            window.dispatchEvent(event);
-          }}
-          className="w-full py-4 px-6 mb-4 bg-green-500 text-white font-bold rounded-2xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2 animate-bounce"
-        >
-          <Download className="w-5 h-5" />
-          Descargar Archivo
-        </button>
+        <div className="w-full space-y-3">
+          <button
+            onClick={() => {
+              const event = new CustomEvent('trigger-manual-download');
+              window.dispatchEvent(event);
+            }}
+            className="w-full py-5 px-6 mb-2 bg-green-500 text-white font-black text-xl rounded-2xl hover:bg-green-600 transition-colors flex items-center justify-center gap-3 animate-pulse shadow-lg shadow-green-500/20"
+          >
+            <Download className="w-6 h-6" />
+            GUARDAR ARCHIVO
+          </button>
+          <p className="text-[10px] text-center text-gray-500 uppercase tracking-widest">
+            Toca arriba para guardar en tu carpeta de descargas
+          </p>
+        </div>
       )}
 
       <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mb-4">
