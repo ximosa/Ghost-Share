@@ -37,8 +37,22 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ progress, file, dire
 
       <h3 className="text-lg font-semibold text-white mb-1 truncate max-w-full">{fileName}</h3>
       <p className="text-sm text-gray-400 mb-8">
-        {isCompleted ? 'Transferencia completada' : direction === 'sending' ? 'Enviando...' : 'Recibiendo...'}
+        {isCompleted ? '¡Transferencia lista!' : direction === 'sending' ? 'Enviando...' : 'Recibiendo...'}
       </p>
+
+      {isCompleted && direction === 'receiving' && (
+        <button
+          onClick={() => {
+            // Este botón servirá de respaldo si la descarga automática falla
+            const event = new CustomEvent('trigger-manual-download');
+            window.dispatchEvent(event);
+          }}
+          className="w-full py-4 px-6 mb-4 bg-green-500 text-white font-bold rounded-2xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2 animate-bounce"
+        >
+          <Download className="w-5 h-5" />
+          Descargar Archivo
+        </button>
+      )}
 
       <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mb-4">
         <div 
@@ -53,12 +67,18 @@ export const ProgressView: React.FC<ProgressViewProps> = ({ progress, file, dire
         <span>{speedMB} MB/s</span>
       </div>
 
-      <button
-        onClick={onReset}
-        className="w-full py-4 px-6 bg-white text-black font-bold rounded-2xl hover:bg-gray-200 transition-colors"
-      >
-        {isCompleted ? 'Transferir otro' : 'Cancelar'}
-      </button>
+      <div className="flex flex-col w-full gap-3">
+        <button
+          onClick={onReset}
+          className={`w-full py-4 px-6 font-bold rounded-2xl transition-colors ${
+            isCompleted 
+              ? 'bg-white/10 text-white hover:bg-white/20' 
+              : 'bg-white text-black hover:bg-gray-200'
+          }`}
+        >
+          {isCompleted ? 'Cerrar' : 'Cancelar Transferencia'}
+        </button>
+      </div>
     </div>
   );
 };

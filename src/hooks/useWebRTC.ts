@@ -14,8 +14,36 @@ export function useWebRTC() {
   const receivedChunksRef = useRef<Uint8Array[]>([]);
   const remoteFileRef = useRef<FileMetadata | null>(null);
   const startTimeRef = useRef<number>(0);
-
   const [localSdp, setLocalSdp] = useState<string | null>(null);
+
+  const triggerDownload = useCallback((chunks: Uint8Array[], metadata: FileMetadata) => {
+    if (chunks.length === 0) return;
+    const blob = new Blob(chunks, { type: 'application/octet-stream' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = metadata.name;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Delay revocation to ensure the browser has started the download
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+  }, []);
+
+  // Support manual download trigger from UI
+  useEffect(() => {
+    const handleManualDownload = () => {
+      if (receivedChunksRef.current.length > 0 && remoteFileRef.current) {
+        triggerDownload(receivedChunksRef.current, remoteFileRef.current);
+      }
+    };
+    window.addEventListener('trigger-manual-download', handleManualDownload);
+    return () => window.removeEventListener('trigger-manual-download', handleManualDownload);
+  }, [triggerDownload]);
 
   const cleanup = useCallback(() => {
     if (dataChannelRef.current) {
@@ -65,18 +93,6 @@ export function useWebRTC() {
       setState('idle');
     };
 
-    const triggerDownload = (chunks: Uint8Array[], metadata: FileMetadata) => {
-      const blob = new Blob(chunks, { type: 'application/octet-stream' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = metadata.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    };
 
     channel.onmessage = (event) => {
       const data = event.data;
