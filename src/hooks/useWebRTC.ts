@@ -178,18 +178,6 @@ export function useWebRTC() {
     peerRef.current = peer;
   }, [cleanup]);
 
-    peer.on('connection', (conn) => {
-      setupConnection(conn);
-    });
-
-    peer.on('error', (err) => {
-      setError('Error de red: ' + err.type);
-      console.error(err);
-    });
-
-    peerRef.current = peer;
-  }, [cleanup]);
-
   const sendFile = async (file: File) => {
     if (!connRef.current) return;
 
