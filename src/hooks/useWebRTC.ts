@@ -1,35 +1,35 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { TransferState, FileMetadata, SignalingData, TransferProgress } from '../types';
+import Peer, { DataConnection } from 'peerjs';
+import { TransferState, FileMetadata, TransferProgress } from '../types';
 
 const CHUNK_SIZE = 16384; // 16KB
-
-// Helper to reduce SDP size for QR codes
-const minifySdp = (sdp: string) => {
-  return sdp
-    .split('\r\n')
-    .filter(line => {
-      // Remove lines that aren't essential for a basic P2P connection
-      return !line.startsWith('a=extmap') && 
-             !line.startsWith('a=fmtp') && 
-             !line.startsWith('a=rtcp') && 
-             !line.startsWith('a=ssrc') &&
-             !line.startsWith('a=msid');
-    })
-    .join('\r\n');
-};
 
 export function useWebRTC() {
   const [state, setState] = useState<TransferState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<TransferProgress>({ bytesTransferred: 0, totalBytes: 0, speed: 0 });
   const [remoteFile, setRemoteFile] = useState<FileMetadata | null>(null);
+  const [peerId, setPeerId] = useState<string | null>(null);
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const receivedChunksRef = useRef<Uint8Array[]>([]);
+  const peerRef = useRef<Peer | null>(null);
+  const connRef = useRef<DataConnection | null>(null);
   const remoteFileRef = useRef<FileMetadata | null>(null);
+  const receivedChunksRef = useRef<Uint8Array[]>([]);
   const startTimeRef = useRef<number>(0);
-  const [localSdp, setLocalSdp] = useState<string | null>(null);
+
+  const cleanup = useCallback(() => {
+    if (connRef.current) {
+      connRef.current.close();
+      connRef.current = null;
+    }
+    if (peerRef.current) {
+      peerRef.current.destroy();
+      peerRef.current = null;
+    }
+    receivedChunksRef.current = [];
+    remoteFileRef.current = null;
+    setPeerId(null);
+  }, []);
 
   const triggerDownload = useCallback((chunks: Uint8Array[], metadata: FileMetadata) => {
     if (chunks.length === 0) return;
@@ -42,14 +42,12 @@ export function useWebRTC() {
     document.body.appendChild(a);
     a.click();
     
-    // Delay revocation to ensure the browser has started the download
     setTimeout(() => {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     }, 1000);
   }, []);
 
-  // Support manual download trigger from UI
   useEffect(() => {
     const handleManualDownload = () => {
       if (receivedChunksRef.current.length > 0 && remoteFileRef.current) {
@@ -60,58 +58,14 @@ export function useWebRTC() {
     return () => window.removeEventListener('trigger-manual-download', handleManualDownload);
   }, [triggerDownload]);
 
-  const cleanup = useCallback(() => {
-    if (dataChannelRef.current) {
-      dataChannelRef.current.close();
-      dataChannelRef.current = null;
-    }
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-    receivedChunksRef.current = [];
-    remoteFileRef.current = null;
-  }, []);
+  const setupConnection = (conn: DataConnection) => {
+    connRef.current = conn;
 
-  const createPeerConnection = useCallback(() => {
-    cleanup();
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
+    conn.on('open', () => {
+      setState('connected');
     });
 
-    pc.oniceconnectionstatechange = () => {
-      console.log('ICE state:', pc.iceConnectionState);
-      if (pc.iceConnectionState === 'connected') {
-        setState('connected');
-      } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
-        setError('Conexión perdida');
-        setState('error');
-      }
-    };
-
-    pcRef.current = pc;
-    return pc;
-  }, [cleanup]);
-  const setupDataChannel = (channel: RTCDataChannel) => {
-    channel.binaryType = 'arraybuffer';
-    
-    channel.onopen = () => {
-      console.log('Data channel opened');
-      setState('connected');
-    };
-
-    channel.onclose = () => {
-      console.log('Data channel closed');
-      setState('idle');
-    };
-
-
-    channel.onmessage = (event) => {
-      const data = event.data;
-
+    conn.on('data', (data: any) => {
       if (typeof data === 'string') {
         try {
           const message = JSON.parse(data);
@@ -146,72 +100,46 @@ export function useWebRTC() {
           setState('completed');
         }
       }
-    };
+    });
 
-    dataChannelRef.current = channel;
-  };
+    conn.on('close', () => {
+      setState('idle');
+    });
 
-  const createOffer = async () => {
-    const pc = createPeerConnection();
-    const dc = pc.createDataChannel('file-transfer', { ordered: true });
-    setupDataChannel(dc);
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    // Wait for ICE gathering to complete before showing the SDP in QR
-    // This is because we don't have a signaling server to trickle ICE
-    return new Promise<string>((resolve) => {
-      if (pc.iceGatheringState === 'complete') {
-        resolve(JSON.stringify({ type: 'offer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
-      } else {
-        pc.onicecandidate = (event) => {
-          if (event.candidate === null) {
-            resolve(JSON.stringify({ type: 'offer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
-          }
-        };
-      }
+    conn.on('error', (err) => {
+      setError('Error en la conexión');
+      console.error(err);
     });
   };
 
-  const createAnswer = async (offerSdp: string) => {
-    const pc = createPeerConnection();
-    pc.ondatachannel = (event) => {
-      setupDataChannel(event.channel);
-    };
-
-    const offer = JSON.parse(offerSdp);
-    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offer.sdp }));
+  const initPeer = useCallback((id?: string) => {
+    cleanup();
+    const peer = new Peer();
     
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    return new Promise<string>((resolve) => {
-      if (pc.iceGatheringState === 'complete') {
-        resolve(JSON.stringify({ type: 'answer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
-      } else {
-        pc.onicecandidate = (event) => {
-          if (event.candidate === null) {
-            resolve(JSON.stringify({ type: 'answer', sdp: minifySdp(pc.localDescription?.sdp || '') }));
-          }
-        };
+    peer.on('open', (newId) => {
+      setPeerId(newId);
+      if (id) {
+        // If we have an ID to connect to, do it automatically
+        const conn = peer.connect(id, { label: 'file-transfer', reliable: true });
+        setupConnection(conn);
+        setState('connecting');
       }
     });
-  };
 
-  const acceptAnswer = async (answerSdp: string) => {
-    const answer = JSON.parse(answerSdp);
-    if (pcRef.current) {
-      await pcRef.current.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answer.sdp }));
-      setState('connecting');
-    }
-  };
+    peer.on('connection', (conn) => {
+      setupConnection(conn);
+    });
+
+    peer.on('error', (err) => {
+      setError('Error de red: ' + err.type);
+      console.error(err);
+    });
+
+    peerRef.current = peer;
+  }, [cleanup]);
 
   const sendFile = async (file: File) => {
-    if (!dataChannelRef.current || dataChannelRef.current.readyState !== 'open') {
-      setError('La conexión no está lista');
-      return;
-    }
+    if (!connRef.current) return;
 
     const metadata = {
       type: 'metadata',
@@ -222,7 +150,7 @@ export function useWebRTC() {
       }
     };
 
-    dataChannelRef.current.send(JSON.stringify(metadata));
+    connRef.current.send(JSON.stringify(metadata));
     setState('transferring');
     setProgress({ bytesTransferred: 0, totalBytes: file.size, speed: 0 });
     startTimeRef.current = Date.now();
@@ -232,14 +160,14 @@ export function useWebRTC() {
 
     const sendChunk = () => {
       while (offset < file.size) {
-        if (dataChannelRef.current!.bufferedAmount > CHUNK_SIZE * 64) {
-          // Wait if buffer is getting full
+        // @ts-ignore
+        if (connRef.current!.dataChannel.bufferedAmount > CHUNK_SIZE * 64) {
           setTimeout(sendChunk, 50);
           return;
         }
 
         const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
-        dataChannelRef.current!.send(chunk);
+        connRef.current!.send(chunk);
         offset += CHUNK_SIZE;
 
         const bytesTransferred = Math.min(offset, file.size);
@@ -247,11 +175,7 @@ export function useWebRTC() {
         const duration = (now - startTimeRef.current) / 1000;
         const speed = duration > 0 ? bytesTransferred / duration : 0;
 
-        setProgress({
-          bytesTransferred,
-          totalBytes: file.size,
-          speed
-        });
+        setProgress({ bytesTransferred, totalBytes: file.size, speed });
 
         if (offset >= file.size) {
           setState('completed');
@@ -268,9 +192,8 @@ export function useWebRTC() {
     error,
     progress,
     remoteFile,
-    createOffer,
-    createAnswer,
-    acceptAnswer,
+    peerId,
+    initPeer,
     sendFile,
     cleanup
   };

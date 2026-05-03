@@ -18,9 +18,8 @@ export default function App() {
     error,
     progress,
     remoteFile,
-    createOffer,
-    createAnswer,
-    acceptAnswer,
+    peerId,
+    initPeer,
     sendFile,
     cleanup
   } = useWebRTC();
@@ -28,6 +27,30 @@ export default function App() {
   const [activeQR, setActiveQR] = useState<{ value: string; title: string; description: string } | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+
+  // Auto-connect if ID is in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+    if (id) {
+      initPeer(id);
+      setState('connecting');
+    }
+  }, [initPeer, setState]);
+
+  // Update share link when peerId is available
+  useEffect(() => {
+    if (peerId && state === 'offering') {
+      const link = `${window.location.origin}${window.location.pathname}?id=${peerId}`;
+      setShareLink(link);
+      setActiveQR({
+        value: link,
+        title: "Enlace para Recibir",
+        description: "Envía este enlace al receptor o escanea el código"
+      });
+    }
+  }, [peerId, state]);
 
   const handleSendClick = () => {
     const input = document.createElement('input');
@@ -36,24 +59,11 @@ export default function App() {
       const file = e.target.files[0];
       if (file) {
         setPendingFile(file);
-        handleCreateOffer();
+        initPeer(); // Generate a new ID for the sender
+        setState('offering');
       }
     };
     input.click();
-  };
-
-  const handleCreateOffer = async () => {
-    try {
-      const offer = await createOffer();
-      setActiveQR({
-        value: offer,
-        title: "1. EL MÓVIL DEBE ESCANEAR ESTO",
-        description: "IMPORTANTE: En tu móvil, dale al botón 'RECIBIR' (dentro de esta web) y escanea este código."
-      });
-      setState('offering');
-    } catch (err) {
-      console.error(err);
-    }
   };
 
   const handleReceiveClick = () => {
@@ -64,20 +74,18 @@ export default function App() {
   const onScan = async (data: string) => {
     setShowScanner(false);
     try {
-      const parsed = JSON.parse(data);
-      if (parsed.type === 'offer') {
-        const answer = await createAnswer(data);
-        setActiveQR({
-          value: answer,
-          title: "2. AHORA EL ORDENADOR ESCANEA AL MÓVIL",
-          description: "Dale al botón que ha aparecido en tu ORDENADOR para escanear este código del móvil."
-        });
-      } else if (parsed.type === 'answer') {
-        setActiveQR(null);
-        await acceptAnswer(data);
+      // If it's a URL with an ID, extract it
+      const url = new URL(data);
+      const id = url.searchParams.get('id');
+      if (id) {
+        initPeer(id);
+      } else {
+        // Fallback for old codes or raw IDs
+        initPeer(data);
       }
     } catch (err) {
-      console.error("Scan error", err);
+      // Not a URL, try as raw ID
+      initPeer(data);
     }
   };
 
@@ -245,16 +253,27 @@ export default function App() {
             value={activeQR.value} 
             title={activeQR.title} 
             description={activeQR.description} 
-            onClose={() => setActiveQR(null)}
+            onClose={() => {
+              setActiveQR(null);
+              setState('idle');
+            }}
           >
-            {state === 'offering' && (
-              <button
-                onClick={() => setShowScanner(true)}
-                className="mt-6 w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2"
-              >
-                <Download className="w-5 h-5" />
-                ¡SIGUIENTE PASO! Clica aquí y escanea al móvil
-              </button>
+            {shareLink && (
+              <div className="mt-4 w-full space-y-4">
+                <div className="p-3 bg-white/10 rounded-xl break-all text-[10px] font-mono text-gray-300 border border-white/10">
+                  {shareLink}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareLink);
+                    alert("¡Enlace copiado!");
+                  }}
+                  className="w-full py-4 bg-white text-black font-bold rounded-2xl flex items-center justify-center gap-2"
+                >
+                  <FileText className="w-5 h-5" />
+                  Copiar Enlace para enviar
+                </button>
+              </div>
             )}
           </QRDisplay>
         )}
