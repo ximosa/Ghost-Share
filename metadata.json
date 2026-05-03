@@ -1,0 +1,6 @@
+{
+  "name": "Ghost-Share",
+  "description": "P2P file transfer app using WebRTC and QR code signaling for zero-server sharing.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}
