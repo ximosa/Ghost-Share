@@ -136,13 +136,29 @@ export function useWebRTC() {
 
   const initPeer = useCallback((id?: string) => {
     cleanup();
-    const peer = new Peer();
+    
+    // Configuración más robusta para evitar desconexiones en móviles
+    const peer = new Peer({
+      debug: 1, // Solo errores
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+        sdpSemantics: 'unified-plan'
+      }
+    });
     
     peer.on('open', (newId) => {
+      console.log('Mi ID de Peer es:', newId);
       setPeerId(newId);
       if (id) {
-        // If we have an ID to connect to, do it automatically
-        const conn = peer.connect(id, { label: 'file-transfer', reliable: true });
+        console.log('Intentando conectar con:', id);
+        const conn = peer.connect(id, { 
+          label: 'file-transfer', 
+          reliable: true,
+          connectionPriority: 'high'
+        });
         setupConnection(conn);
         setState('connecting');
       }

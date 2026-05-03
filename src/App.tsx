@@ -230,6 +230,9 @@ export default function App() {
                   <FileText className="w-5 h-5" />
                   Copiar Enlace para enviar
                 </button>
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-[10px] text-center font-medium leading-relaxed">
+                  ⚠️ NO CIERRES NI MINIMICES esta pestaña en el móvil hasta que el ordenador esté conectado.
+                </div>
               </div>
             )}
           </QRDisplay>
