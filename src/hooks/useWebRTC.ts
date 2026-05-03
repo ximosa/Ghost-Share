@@ -81,26 +81,46 @@ export function useWebRTC() {
         } catch (e) {
           console.error('Failed to parse message', e);
         }
-      } else if (data instanceof ArrayBuffer) {
-        receivedChunksRef.current.push(new Uint8Array(data));
-        
-        const bytesTransferred = receivedChunksRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
-        const now = Date.now();
-        const duration = (now - startTimeRef.current) / 1000;
-        const speed = duration > 0 ? bytesTransferred / duration : 0;
-
-        setProgress(prev => ({
-          ...prev,
-          bytesTransferred,
-          speed
-        }));
-
-        if (remoteFileRef.current && bytesTransferred >= remoteFileRef.current.size) {
-          triggerDownload(receivedChunksRef.current, remoteFileRef.current);
-          setState('completed');
+      } else {
+        // Handle binary data (could be ArrayBuffer, Uint8Array, or Blob)
+        let chunk: Uint8Array;
+        if (data instanceof Uint8Array) {
+          chunk = data;
+        } else if (data instanceof ArrayBuffer) {
+          chunk = new Uint8Array(data);
+        } else if (data instanceof Blob) {
+          // Blobs are less common in PeerJS data events but possible
+          data.arrayBuffer().then(buf => {
+             const u8 = new Uint8Array(buf);
+             processChunk(u8);
+          });
+          return;
+        } else {
+          chunk = new Uint8Array(data);
         }
+        processChunk(chunk);
       }
     });
+
+    const processChunk = (chunk: Uint8Array) => {
+      receivedChunksRef.current.push(chunk);
+      
+      const bytesTransferred = receivedChunksRef.current.reduce((acc, c) => acc + c.length, 0);
+      const now = Date.now();
+      const duration = (now - startTimeRef.current) / 1000;
+      const speed = duration > 0 ? bytesTransferred / duration : 0;
+
+      setProgress(prev => ({
+        ...prev,
+        bytesTransferred,
+        speed
+      }));
+
+      if (remoteFileRef.current && bytesTransferred >= remoteFileRef.current.size) {
+        triggerDownload(receivedChunksRef.current, remoteFileRef.current);
+        setState('completed');
+      }
+    };
 
     conn.on('close', () => {
       setState('idle');
@@ -157,20 +177,26 @@ export function useWebRTC() {
 
     const buffer = await file.arrayBuffer();
     let offset = 0;
+    const SAFE_CHUNK_SIZE = 32768; // 32KB is more standard for WebRTC
 
     const sendChunk = () => {
+      if (!connRef.current || !connRef.current.open) return;
+
       while (offset < file.size) {
-        // @ts-ignore
-        if (connRef.current!.dataChannel.bufferedAmount > CHUNK_SIZE * 64) {
+        // @ts-ignore - Access internal datachannel safely
+        const bufferedAmount = connRef.current.dataChannel?.bufferedAmount || 0;
+        
+        if (bufferedAmount > SAFE_CHUNK_SIZE * 32) {
           setTimeout(sendChunk, 50);
           return;
         }
 
-        const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
-        connRef.current!.send(chunk);
-        offset += CHUNK_SIZE;
+        const end = Math.min(offset + SAFE_CHUNK_SIZE, file.size);
+        const chunk = buffer.slice(offset, end);
+        connRef.current.send(chunk);
+        offset = end;
 
-        const bytesTransferred = Math.min(offset, file.size);
+        const bytesTransferred = offset;
         const now = Date.now();
         const duration = (now - startTimeRef.current) / 1000;
         const speed = duration > 0 ? bytesTransferred / duration : 0;
