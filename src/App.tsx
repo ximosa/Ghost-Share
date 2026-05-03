@@ -12,6 +12,12 @@ import { Send, Download, Ghost, ShieldCheck, XCircle, FileText } from 'lucide-re
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
+  const {
+    state,
+    setState,
+    error,
+    progress,
+    remoteFile,
     peerId,
     initPeer,
     sendFile,
