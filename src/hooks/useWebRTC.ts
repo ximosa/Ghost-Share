@@ -12,6 +12,7 @@ export function useWebRTC() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const receivedChunksRef = useRef<Uint8Array[]>([]);
+  const remoteFileRef = useRef<FileMetadata | null>(null);
   const startTimeRef = useRef<number>(0);
 
   const [localSdp, setLocalSdp] = useState<string | null>(null);
@@ -26,6 +27,7 @@ export function useWebRTC() {
       pcRef.current = null;
     }
     receivedChunksRef.current = [];
+    remoteFileRef.current = null;
   }, []);
 
   const createPeerConnection = useCallback(() => {
@@ -50,7 +52,6 @@ export function useWebRTC() {
     pcRef.current = pc;
     return pc;
   }, [cleanup]);
-
   const setupDataChannel = (channel: RTCDataChannel) => {
     channel.binaryType = 'arraybuffer';
     
@@ -64,6 +65,19 @@ export function useWebRTC() {
       setState('idle');
     };
 
+    const triggerDownload = (chunks: Uint8Array[], metadata: FileMetadata) => {
+      const blob = new Blob(chunks, { type: 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = metadata.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    };
+
     channel.onmessage = (event) => {
       const data = event.data;
 
@@ -71,9 +85,11 @@ export function useWebRTC() {
         try {
           const message = JSON.parse(data);
           if (message.type === 'metadata') {
-            setRemoteFile(message.payload);
+            const metadata = message.payload;
+            setRemoteFile(metadata);
+            remoteFileRef.current = metadata;
             receivedChunksRef.current = [];
-            setProgress({ bytesTransferred: 0, totalBytes: message.payload.size, speed: 0 });
+            setProgress({ bytesTransferred: 0, totalBytes: metadata.size, speed: 0 });
             startTimeRef.current = Date.now();
             setState('transferring');
           }
@@ -94,14 +110,8 @@ export function useWebRTC() {
           speed
         }));
 
-        if (remoteFile && bytesTransferred >= remoteFile.size) {
-          const blob = new Blob(receivedChunksRef.current, { type: remoteFile.type });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = remoteFile.name;
-          a.click();
-          URL.revokeObjectURL(url);
+        if (remoteFileRef.current && bytesTransferred >= remoteFileRef.current.size) {
+          triggerDownload(receivedChunksRef.current, remoteFileRef.current);
           setState('completed');
         }
       }
